@@ -2,7 +2,7 @@ name: 每日股市摘要
 
 on:
   schedule:
-    - cron: "0 23 * * *"  # UTC 23:00 = 台灣時間早上 7:00
+    - cron: "7 23 * * *"  # UTC 23:07 = 台灣時間早上 7:07（刻意避開整點，減少 GitHub 排程延遲）
   workflow_dispatch: {}
 
 permissions:
