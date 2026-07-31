@@ -1,7 +1,8 @@
 """
-每日主流程：抓資料 -> (成功則)生成摘要 -> 存檔 -> 重新渲染整個網站。
+每日主流程：抓資料 -> 比對前一筆歷史算增減 -> (成功則)生成摘要 -> 存檔 -> 重新渲染整個網站。
 容錯規則：資料抓不齊全就跳過摘要生成，存一筆 ok=False 的紀錄，網站顯示「今日資料異常」。
 """
+import glob
 import json
 import os
 import sys
@@ -16,6 +17,21 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 
 
+def _find_previous_foreign_futures_net(current_date):
+    """找目前這筆之前、最近一筆有外資期貨資料的紀錄，回傳其淨部位口數"""
+    paths = sorted(glob.glob(os.path.join(DATA_DIR, "*.json")))
+    for path in reversed(paths):
+        file_date = os.path.basename(path).replace(".json", "")
+        if file_date >= current_date:
+            continue
+        with open(path, encoding="utf-8") as f:
+            prev = json.load(f)
+        ff = prev.get("foreign_futures")
+        if ff and ff.get("net_open_interest") is not None:
+            return ff["net_open_interest"]
+    return None
+
+
 def main():
     _load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
     os.makedirs(DATA_DIR, exist_ok=True)
@@ -23,9 +39,17 @@ def main():
     data = fetch_all()
     record = dict(data)
 
+    if data.get("foreign_futures"):
+        prev_net = _find_previous_foreign_futures_net(data["date"])
+        record["foreign_futures"] = dict(data["foreign_futures"])
+        record["foreign_futures"]["change_from_prev"] = (
+            data["foreign_futures"]["net_open_interest"] - prev_net
+            if prev_net is not None else None
+        )
+
     if data["ok"]:
         try:
-            record["summary"] = generate_summary(data)
+            record["summary"] = generate_summary(record)
         except Exception as e:
             record["ok"] = False
             record["missing_fields"] = record.get("missing_fields", []) + [f"gemini生成失敗: {e}"]

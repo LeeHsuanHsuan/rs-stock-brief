@@ -17,6 +17,7 @@ PROMPT_TEMPLATE = """你是一位台股投顧研究員，每天早上要寫一�
 2. 技術判讀只能根據「收盤價 vs 5日線/10日線」的相對關係去寫，不要提到跳空缺口、成交量排名等沒有提供的資料。
 3. 格式仿照範例：先美股段落，再大盤段落，再櫃買段落，再資金籌碼面段落，再持續觀察指標段落，最後美股科技股/個股段落。
 4. 不要加任何 Markdown 符號（不要用 **、#、-），純文字段落，段落之間空一行。
+5. 數字裡的千分位逗號（例如 13,112.23）要原樣保留，不要拿掉。
 
 今天日期：{date}
 
@@ -41,6 +42,7 @@ S&P500 收盤{sp500_close} 漲跌{sp500_pct}%
 
 【外資期貨】
 臺股期貨未平倉淨部位 {foreign_futures_net}口（負數代表淨空單）
+較前一交易日{foreign_futures_change}
 
 【持續觀察指標】
 美元指數 {dxy}
@@ -64,6 +66,30 @@ def _to_yi(value):
     return round(value / 1e8, 1)
 
 
+def _fmt(value):
+    """數字加千分位逗號，例如 13112.23 -> 13,112.23"""
+    if value is None:
+        return "未知"
+    return f"{value:,.2f}"
+
+
+def _fmt_int(value):
+    if value is None:
+        return "未知"
+    return f"{value:,}"
+
+
+def _ff_change_text(ff):
+    change = ff.get("change_from_prev")
+    if change is None:
+        return "（沒有前一交易日資料可比對，略過）"
+    if change > 0:
+        return f"增加{_fmt_int(change)}口"
+    if change < 0:
+        return f"減少{_fmt_int(abs(change))}口"
+    return "持平"
+
+
 def build_prompt(data):
     us = data["us_indices"]
     twse = data["twse_index"]
@@ -75,30 +101,31 @@ def build_prompt(data):
 
     return PROMPT_TEMPLATE.format(
         date=data["date"],
-        dow_close=us["dow"]["close"], dow_pct=us["dow"]["change_pct"],
-        nasdaq_close=us["nasdaq"]["close"], nasdaq_pct=us["nasdaq"]["change_pct"],
-        sp500_close=us["sp500"]["close"], sp500_pct=us["sp500"]["change_pct"],
-        sox_close=us["sox"]["close"], sox_pct=us["sox"]["change_pct"],
-        twse_close=twse["close"], twse_pct=twse["change_pct"],
-        twse_ma5=twse["ma5"], twse_ma10=twse["ma10"],
+        dow_close=_fmt(us["dow"]["close"]), dow_pct=us["dow"]["change_pct"],
+        nasdaq_close=_fmt(us["nasdaq"]["close"]), nasdaq_pct=us["nasdaq"]["change_pct"],
+        sp500_close=_fmt(us["sp500"]["close"]), sp500_pct=us["sp500"]["change_pct"],
+        sox_close=_fmt(us["sox"]["close"]), sox_pct=us["sox"]["change_pct"],
+        twse_close=_fmt(twse["close"]), twse_pct=twse["change_pct"],
+        twse_ma5=_fmt(twse["ma5"]), twse_ma10=_fmt(twse["ma10"]),
         twse_above5="是" if twse["above_ma5"] else "否",
         twse_above10="是" if twse["above_ma10"] else "否",
         twse_value=twse.get("trading_value_billion", "未知"),
-        tpex_close=tpex["close"], tpex_pct=tpex["change_pct"],
-        tpex_ma5=tpex["ma5"], tpex_ma10=tpex["ma10"],
+        tpex_close=_fmt(tpex["close"]), tpex_pct=tpex["change_pct"],
+        tpex_ma5=_fmt(tpex["ma5"]), tpex_ma10=_fmt(tpex["ma10"]),
         tpex_above5="是" if tpex["above_ma5"] else "否",
         tpex_above10="是" if tpex["above_ma10"] else "否",
         dealer_self=_to_yi(inst.get("自營商(自行買賣)")),
         dealer_hedge=_to_yi(inst.get("自營商(避險)")),
         trust=_to_yi(inst.get("投信")),
         foreign=_to_yi(inst.get("外資及陸資(不含外資自營商)")),
-        foreign_futures_net=ff["net_open_interest"],
+        foreign_futures_net=_fmt_int(ff["net_open_interest"]),
+        foreign_futures_change=_ff_change_text(ff),
         dxy=macro["dxy"], usdtwd=macro["usdtwd"], us10y=macro["us10y"],
-        tsmc_close=stocks["tsmc_2330"]["close"], tsmc_pct=stocks["tsmc_2330"]["change_pct"],
-        nvda_close=stocks["nvda"]["close"], nvda_pct=stocks["nvda"]["change_pct"],
-        tsla_close=stocks["tsla"]["close"], tsla_pct=stocks["tsla"]["change_pct"],
-        aapl_close=stocks["aapl"]["close"], aapl_pct=stocks["aapl"]["change_pct"],
-        tsm_close=stocks["tsm_adr"]["close"], tsm_pct=stocks["tsm_adr"]["change_pct"],
+        tsmc_close=_fmt(stocks["tsmc_2330"]["close"]), tsmc_pct=stocks["tsmc_2330"]["change_pct"],
+        nvda_close=_fmt(stocks["nvda"]["close"]), nvda_pct=stocks["nvda"]["change_pct"],
+        tsla_close=_fmt(stocks["tsla"]["close"]), tsla_pct=stocks["tsla"]["change_pct"],
+        aapl_close=_fmt(stocks["aapl"]["close"]), aapl_pct=stocks["aapl"]["change_pct"],
+        tsm_close=_fmt(stocks["tsm_adr"]["close"]), tsm_pct=stocks["tsm_adr"]["change_pct"],
     )
 
 

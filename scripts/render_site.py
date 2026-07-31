@@ -28,7 +28,57 @@ th, td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: left; font-
 .meta { color: #666; font-size: 0.9rem; margin-bottom: 1.5rem; }
 .notice { border-left: 3px solid #ccc; background: #f7f7f7; padding: 0.75rem 1rem; color: #555; }
 .back { display: inline-block; margin-top: 2rem; }
+.up { color: #c0392b; }
+.down { color: #1e8449; }
 """
+
+
+def _fmt(value):
+    if value is None:
+        return "—"
+    return f"{value:,.2f}"
+
+
+def _change_cell(pct):
+    if pct is None:
+        return "<td>—</td>"
+    cls = "up" if pct > 0 else "down" if pct < 0 else ""
+    sign = "+" if pct > 0 else ""
+    return f'<td class="{cls}">{sign}{pct}%</td>'
+
+
+def render_index_table(record):
+    rows = []
+    us = record.get("us_indices") or {}
+    twse = record.get("twse_index") or {}
+    tpex = record.get("tpex_index") or {}
+    stocks = record.get("stocks") or {}
+
+    def row(name, close, pct, note=""):
+        return f"<tr><td>{name}</td><td>{_fmt(close)}</td>{_change_cell(pct)}<td>{note}</td></tr>"
+
+    entries = [
+        ("道瓊工業指數", us.get("dow", {}).get("close"), us.get("dow", {}).get("change_pct"), ""),
+        ("那斯達克指數", us.get("nasdaq", {}).get("close"), us.get("nasdaq", {}).get("change_pct"), ""),
+        ("S&P500指數", us.get("sp500", {}).get("close"), us.get("sp500", {}).get("change_pct"), ""),
+        ("費城半導體指數", us.get("sox", {}).get("close"), us.get("sox", {}).get("change_pct"), ""),
+        ("台股大盤", twse.get("close"), twse.get("change_pct"),
+         "站上5日線" if twse.get("above_ma5") else "跌破5日線"),
+        ("櫃買指數", tpex.get("close"), tpex.get("change_pct"),
+         "站上5日線" if tpex.get("above_ma5") else "跌破5日線"),
+        ("台積電(2330)", stocks.get("tsmc_2330", {}).get("close"), stocks.get("tsmc_2330", {}).get("change_pct"), ""),
+        ("NVDA", stocks.get("nvda", {}).get("close"), stocks.get("nvda", {}).get("change_pct"), ""),
+        ("TSLA", stocks.get("tsla", {}).get("close"), stocks.get("tsla", {}).get("change_pct"), ""),
+        ("AAPL", stocks.get("aapl", {}).get("close"), stocks.get("aapl", {}).get("change_pct"), ""),
+        ("台積電ADR(TSM)", stocks.get("tsm_adr", {}).get("close"), stocks.get("tsm_adr", {}).get("change_pct"), ""),
+    ]
+    for name, close, pct, note in entries:
+        rows.append(row(name, close, pct, note))
+
+    return (
+        "<table><tr><th>指數/資產</th><th>收盤價</th><th>漲跌</th><th>備註</th></tr>"
+        + "".join(rows) + "</table>"
+    )
 
 
 def _page(title, body_html):
@@ -58,10 +108,14 @@ def render_day_page(record):
 """
     else:
         summary = record["summary"].replace("\n\n", "</p><p>")
+        table = render_index_table(record)
         body = f"""
 <h1>RS股市小幫手</h1>
 <div class="meta">{date}</div>
+<h2>今日摘要</h2>
 <p>{summary}</p>
+<h2>指數總覽</h2>
+{table}
 <a class="back" href="index.html">回歷史紀錄</a>
 """
     return _page(f"RS股市小幫手 - {date}", body)
