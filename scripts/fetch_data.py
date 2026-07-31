@@ -102,9 +102,16 @@ def fetch_twse_index():
             return None
         latest_value = int(rows[-1][2].replace(",", ""))
         block["trading_value_billion"] = round(latest_value / 1e8, 1)
+        block["trading_date"] = _roc_to_western(rows[-1][0])
         return block
     except Exception:
         return None
+
+
+def _roc_to_western(roc_date):
+    """民國日期 '115/07/31' 轉西元 '2026-07-31'"""
+    year, month, day = roc_date.split("/")
+    return f"{int(year) + 1911}-{month}-{day}"
 
 
 def fetch_tpex_index():
