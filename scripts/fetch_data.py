@@ -6,6 +6,7 @@
 import json
 import sys
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import requests
 import yfinance as yf
@@ -14,6 +15,8 @@ REQUIRED_KEYS = [
     "us_indices", "twse_index", "tpex_index",
     "institutional", "foreign_futures", "macro", "stocks",
 ]
+
+TAIPEI_TZ = ZoneInfo("Asia/Taipei")
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; RS-Stock-Brief/1.0)"}
 
@@ -169,7 +172,7 @@ def fetch_foreign_futures():
 
 def fetch_all():
     result = {
-        "date": datetime.now().strftime("%Y-%m-%d"),
+        "date": datetime.now(TAIPEI_TZ).strftime("%Y-%m-%d"),
         "us_indices": fetch_us_indices(),
         "twse_index": fetch_twse_index(),
         "tpex_index": fetch_tpex_index(),
