@@ -1,0 +1,143 @@
+"""
+把 fetch_data.py 抓到的數字丟給 Gemini，生成一篇跟範例語氣一致的每日摘要。
+只根據傳入的數字做技術面判讀（均線是否有守），不編造新聞或數字以外的資訊。
+"""
+import os
+import sys
+import json
+import requests
+
+GEMINI_MODEL = "gemini-flash-latest"
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
+
+PROMPT_TEMPLATE = """你是一位台股投顧研究員，每天早上要寫一則給熟客看的股市摘要，語氣口語、專業，會做技術面判讀（例如「觀察5日線是否能持續有守，守住的話就能再往上挑戰創高」這種句型）。
+
+嚴格規則：
+1. 只能使用下面提供的數字，不能編造任何新聞、消息面、產業評論或這些數字以外的資訊。
+2. 技術判讀只能根據「收盤價 vs 5日線/10日線」的相對關係去寫，不要提到跳空缺口、成交量排名等沒有提供的資料。
+3. 格式仿照範例：先美股段落，再大盤段落，再櫃買段落，再資金籌碼面段落，再持續觀察指標段落，最後美股科技股/個股段落。
+4. 不要加任何 Markdown 符號（不要用 **、#、-），純文字段落，段落之間空一行。
+
+今天日期：{date}
+
+【美股】
+道瓊 收盤{dow_close} 漲跌{dow_pct}%
+那斯達克 收盤{nasdaq_close} 漲跌{nasdaq_pct}%
+S&P500 收盤{sp500_close} 漲跌{sp500_pct}%
+費半(SOX) 收盤{sox_close} 漲跌{sox_pct}%
+
+【台股大盤】
+收盤{twse_close} 漲跌{twse_pct}% 5日線{twse_ma5} 10日線{twse_ma10} 站上5日線:{twse_above5} 站上10日線:{twse_above10}
+大盤成交金額 約{twse_value}億
+
+【櫃買】
+收盤{tpex_close} 漲跌{tpex_pct}% 5日線{tpex_ma5} 10日線{tpex_ma10} 站上5日線:{tpex_above5} 站上10日線:{tpex_above10}
+
+【三大法人買賣超(億元，正數為買超)】
+自營商(自行買賣) {dealer_self}
+自營商(避險) {dealer_hedge}
+投信 {trust}
+外資及陸資 {foreign}
+
+【外資期貨】
+臺股期貨未平倉淨部位 {foreign_futures_net}口（負數代表淨空單）
+
+【持續觀察指標】
+美元指數 {dxy}
+台幣匯率(1美元兌台幣) {usdtwd}
+美國10年期公債殖利率 {us10y}%
+
+【個股】
+台積電(2330) 收盤{tsmc_close} 漲跌{tsmc_pct}%
+NVDA 收盤{nvda_close} 漲跌{nvda_pct}%
+TSLA 收盤{tsla_close} 漲跌{tsla_pct}%
+AAPL 收盤{aapl_close} 漲跌{aapl_pct}%
+台積電ADR(TSM) 收盤{tsm_close} 漲跌{tsm_pct}%
+
+請直接輸出摘要內容，不要有開場白或「好的，以下是摘要」這類文字。
+"""
+
+
+def _to_yi(value):
+    if value is None:
+        return "未知"
+    return round(value / 1e8, 1)
+
+
+def build_prompt(data):
+    us = data["us_indices"]
+    twse = data["twse_index"]
+    tpex = data["tpex_index"]
+    inst = data["institutional"]
+    ff = data["foreign_futures"]
+    macro = data["macro"]
+    stocks = data["stocks"]
+
+    return PROMPT_TEMPLATE.format(
+        date=data["date"],
+        dow_close=us["dow"]["close"], dow_pct=us["dow"]["change_pct"],
+        nasdaq_close=us["nasdaq"]["close"], nasdaq_pct=us["nasdaq"]["change_pct"],
+        sp500_close=us["sp500"]["close"], sp500_pct=us["sp500"]["change_pct"],
+        sox_close=us["sox"]["close"], sox_pct=us["sox"]["change_pct"],
+        twse_close=twse["close"], twse_pct=twse["change_pct"],
+        twse_ma5=twse["ma5"], twse_ma10=twse["ma10"],
+        twse_above5="是" if twse["above_ma5"] else "否",
+        twse_above10="是" if twse["above_ma10"] else "否",
+        twse_value=twse.get("trading_value_billion", "未知"),
+        tpex_close=tpex["close"], tpex_pct=tpex["change_pct"],
+        tpex_ma5=tpex["ma5"], tpex_ma10=tpex["ma10"],
+        tpex_above5="是" if tpex["above_ma5"] else "否",
+        tpex_above10="是" if tpex["above_ma10"] else "否",
+        dealer_self=_to_yi(inst.get("自營商(自行買賣)")),
+        dealer_hedge=_to_yi(inst.get("自營商(避險)")),
+        trust=_to_yi(inst.get("投信")),
+        foreign=_to_yi(inst.get("外資及陸資(不含外資自營商)")),
+        foreign_futures_net=ff["net_open_interest"],
+        dxy=macro["dxy"], usdtwd=macro["usdtwd"], us10y=macro["us10y"],
+        tsmc_close=stocks["tsmc_2330"]["close"], tsmc_pct=stocks["tsmc_2330"]["change_pct"],
+        nvda_close=stocks["nvda"]["close"], nvda_pct=stocks["nvda"]["change_pct"],
+        tsla_close=stocks["tsla"]["close"], tsla_pct=stocks["tsla"]["change_pct"],
+        aapl_close=stocks["aapl"]["close"], aapl_pct=stocks["aapl"]["change_pct"],
+        tsm_close=stocks["tsm_adr"]["close"], tsm_pct=stocks["tsm_adr"]["change_pct"],
+    )
+
+
+def generate_summary(data, api_key=None):
+    api_key = api_key or os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise RuntimeError("找不到 GEMINI_API_KEY，請確認環境變數或 .env 有設定")
+
+    prompt = build_prompt(data)
+    resp = requests.post(
+        f"{GEMINI_URL}?key={api_key}",
+        json={"contents": [{"parts": [{"text": prompt}]}]},
+        timeout=60,
+    )
+    resp.raise_for_status()
+    payload = resp.json()
+    text = payload["candidates"][0]["content"]["parts"][0]["text"]
+    return text.strip()
+
+
+def _load_dotenv(path=".env"):
+    if not os.path.exists(path):
+        return
+    for line in open(path):
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k, v)
+
+
+if __name__ == "__main__":
+    _load_dotenv()
+    from fetch_data import fetch_all
+
+    data = fetch_all()
+    if not data["ok"]:
+        print(f"資料不齊全，無法生成摘要: {data['missing_fields']}", file=sys.stderr)
+        sys.exit(1)
+
+    summary = generate_summary(data)
+    print(summary)
