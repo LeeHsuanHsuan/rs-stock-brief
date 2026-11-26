@@ -1,0 +1,84 @@
+{
+  "date": "2026-11-26",
+  "us_indices": {
+    "dow": {
+      "close": 50182.9,
+      "change_pct": 0.33
+    },
+    "nasdaq": {
+      "close": 23585.8,
+      "change_pct": -0.62
+    },
+    "sp500": {
+      "close": 7182.78,
+      "change_pct": -0.25
+    },
+    "sox": {
+      "close": 8774.86,
+      "change_pct": -0.65
+    }
+  },
+  "twse_index": {
+    "close": 38195.43,
+    "change_pct": -4.8,
+    "ma5": 37917.97,
+    "ma10": 39768.39,
+    "above_ma5": true,
+    "above_ma10": false,
+    "trading_value_billion": 12297.6,
+    "trading_date": "2026-11-25"
+  },
+  "tpex_index": {
+    "close": 275.97,
+    "change_pct": -5.89,
+    "ma5": 277.75,
+    "ma10": 300.02,
+    "above_ma5": false,
+    "above_ma10": false,
+    "trading_value_billion": null
+  },
+  "institutional": {
+    "自營商(自行買賣)": -7362852102,
+    "自營商(避險)": -5470364428,
+    "投信": 55034724295,
+    "外資及陸資(不含外資自營商)": -123654798153,
+    "外資自營商": 0,
+    "合計": -81453290388
+  },
+  "foreign_futures": {
+    "date": "20261125",
+    "net_open_interest": -105709,
+    "change_from_prev": -7846
+  },
+  "macro": {
+    "dxy": 103.79,
+    "usdtwd": 32.95,
+    "us10y": 4.85
+  },
+  "stocks": {
+    "tsmc_2330": {
+      "close": 2160.0,
+      "change_pct": 0.47
+    },
+    "nvda": {
+      "close": 149.3,
+      "change_pct": -3.91
+    },
+    "tsla": {
+      "close": 380.14,
+      "change_pct": -1.18
+    },
+    "aapl": {
+      "close": 355.58,
+      "change_pct": 0.43
+    },
+    "tsm_adr": {
+      "close": 342.34,
+      "change_pct": -1.96
+    }
+  },
+  "ok": false,
+  "missing_fields": [
+    "gemini生成失敗: HTTPSConnectionPool(host='generativelanguage.googleapis.com', port=443): Read timed out. (read timeout=60)"
+  ]
+}
